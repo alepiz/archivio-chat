@@ -1,0 +1,115 @@
+{% extends "chats/base.html" %}
+{% load humanize %}
+{% block css %}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:10px}
+.toolbar h2{margin:0;font-size:20px;flex:1 1 100%}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bulk{position:sticky;top:54px;z-index:4;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;margin:0 0 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.bulk .count{font-weight:600}
+table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+td{padding:9px 10px;border-top:1px solid var(--line);vertical-align:top}
+tr:first-child td{border-top:0}
+tr.sel td{background:var(--accent-soft)}
+td.chk{width:34px} td.date{width:96px;white-space:nowrap} td.cat{width:220px}
+.title{font-weight:600}
+.snip{margin-top:3px;font-size:13px;color:var(--muted)}
+.pager{display:flex;gap:10px;align-items:center;justify-content:center;margin:16px 0}
+{% endblock %}
+{% block content %}
+<div class="toolbar">
+  <h2>{% if params.q %}Risultati per “{{ params.q }}”{% elif archive_view %}Archiviate{% elif cat_param == 'none' %}Senza categoria{% elif current_cat %}{{ current_cat }}{% else %}Tutte le chat{% endif %}
+    <span class="muted small">· {{ total|intcomma }} chat</span></h2>
+  <form class="filters" method="get">
+    {% if params.q %}<input type="hidden" name="q" value="{{ params.q }}">{% endif %}
+    {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
+    {% if params.vista %}<input type="hidden" name="vista" value="{{ params.vista }}">{% endif %}
+    <select name="ordine" onchange="this.form.submit()">
+      {% if has_query %}<option value="rilevanza" {% if order == 'rilevanza' %}selected{% endif %}>Più pertinenti</option>{% endif %}
+      <option value="recenti" {% if order == 'recenti' %}selected{% endif %}>Più recenti</option>
+      <option value="vecchie" {% if order == 'vecchie' %}selected{% endif %}>Più vecchie</option>
+      <option value="lunghe" {% if order == 'lunghe' %}selected{% endif %}>Più lunghe</option>
+      <option value="titolo" {% if order == 'titolo' %}selected{% endif %}>Titolo A–Z</option>
+    </select>
+    <select name="anno" onchange="this.form.submit()">
+      <option value="">Tutti gli anni</option>
+      {% for y in years %}<option value="{{ y }}" {% if params.anno == y|stringformat:'s' %}selected{% endif %}>{{ y }}</option>{% endfor %}
+    </select>
+    {% if projects %}<select name="progetto" onchange="this.form.submit()">
+      <option value="">Tutti i progetti ChatGPT</option>
+      {% for p in projects %}<option value="{{ p.id }}" {% if params.progetto == p.id|stringformat:'s' %}selected{% endif %}>{{ p.name }} ({{ p.n }})</option>{% endfor %}
+    </select>{% endif %}
+    <select name="assegnata" onchange="this.form.submit()">
+      <option value="">Qualsiasi assegnazione</option>
+      <option value="auto" {% if params.assegnata == 'auto' %}selected{% endif %}>Automatica (da controllare)</option>
+      <option value="project" {% if params.assegnata == 'project' %}selected{% endif %}>Da progetto</option>
+      <option value="manual" {% if params.assegnata == 'manual' %}selected{% endif %}>Manuale</option>
+    </select>
+    {% if qs_keep %}<a class="small" href="{% url 'chats:index' %}">azzera filtri</a>{% endif %}
+  </form>
+</div>
+
+{% if rows %}
+<form method="post" action="{% url 'chats:move' %}" id="bulk-form">
+  {% csrf_token %}
+  <input type="hidden" name="next" value="{{ next_url }}">
+  <input type="hidden" name="filtro" value="{{ qs_keep }}">
+  <div class="bulk">
+    <label><input type="checkbox" id="chk-all"> tutte in pagina</label>
+    <span class="count" id="sel-count">0 selezionate</span>
+    {% include "chats/_move_select.html" %}
+    <button type="submit" class="primary" name="tutti" value="0">Sposta selezionate</button>
+    {% if archive_view %}<button type="submit" name="azione" value="ripristina">Ripristina selezionate</button>
+    {% else %}<button type="submit" name="azione" value="archivia">Archivia selezionate</button>{% endif %}
+    {% if filtered %}<button type="submit" name="tutti" value="1" id="move-all"
+      data-total="{{ total }}">Sposta tutte le {{ total|intcomma }} di questo elenco</button>{% endif %}
+  </div>
+  <table>
+  {% for c in rows %}
+    <tr>
+      <td class="chk"><input type="checkbox" name="ids" value="{{ c.id }}" class="row-chk"></td>
+      <td>
+        <a class="title" href="{% url 'chats:detail' c.id %}?da={{ next_url|urlencode }}">{{ c.title }}</a>
+        {% if c.snippet %}<div class="snip">{{ c.snippet }}</div>
+        {% elif c.excerpt %}<div class="snip">{{ c.excerpt|truncatechars:160 }}</div>{% endif %}
+        <div class="small muted">{{ c.message_count }} messaggi{% if c.attachment_count %} · {{ c.attachment_count }} file{% endif %}{% if c.project %} · progetto {{ c.project.name }}{% endif %}{% if c.remote_deleted_at %} · <span class="tag plain">eliminata su ChatGPT</span>{% endif %}</div>
+      </td>
+      <td class="date small muted">{{ c.updated_at|date:"d/m/Y" }}</td>
+      <td class="cat small">{% if c.category %}<span class="tag{% if c.assigned_by != 'manual' %} plain{% endif %}" title="{{ c.get_assigned_by_display }}">{{ c.category }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </table>
+</form>
+{% if page.has_other_pages %}
+<div class="pager">
+  {% if page.has_previous %}<a class="btn" href="?{{ qs_keep }}&pagina={{ page.previous_page_number }}">← precedente</a>{% endif %}
+  <span class="muted small">pagina {{ page.number }} di {{ page.paginator.num_pages }}</span>
+  {% if page.has_next %}<a class="btn" href="?{{ qs_keep }}&pagina={{ page.next_page_number }}">successiva →</a>{% endif %}
+</div>
+{% endif %}
+{% else %}
+<p class="muted">Nessuna chat trovata.{% if not all_count %} L'archivio è vuoto: importa l'export con <code>python manage.py importa</code>.{% endif %}</p>
+{% endif %}
+{% endblock %}
+{% block js %}
+<script>
+(function(){
+  const boxes=[...document.querySelectorAll('.row-chk')], all=document.getElementById('chk-all'), cnt=document.getElementById('sel-count');
+  function upd(){const n=boxes.filter(b=>b.checked).length; if(cnt)cnt.textContent=n+(n===1?' selezionata':' selezionate');
+    boxes.forEach(b=>b.closest('tr').classList.toggle('sel',b.checked)); if(all)all.checked=n&&n===boxes.length;}
+  boxes.forEach(b=>b.addEventListener('change',upd));
+  if(all)all.addEventListener('change',()=>{boxes.forEach(b=>b.checked=all.checked);upd();});
+  let last=null; boxes.forEach((b,i)=>b.addEventListener('click',e=>{ // shift+clic per selezionare un intervallo
+    if(e.shiftKey&&last!==null){const [a,z]=[Math.min(last,i),Math.max(last,i)];for(let k=a;k<=z;k++)boxes[k].checked=b.checked;upd();} last=i;}));
+  document.querySelectorAll('.js-move-select').forEach(s=>s.addEventListener('change',()=>{
+    s.parentElement.querySelector('.js-new-cat').hidden=s.value!=='nuova';}));
+  const f=document.getElementById('bulk-form');
+  if(f)f.addEventListener('submit',e=>{
+    const btn=e.submitter, sel=f.querySelector('.js-move-select');
+    if(btn&&btn.name==='azione'){if(!boxes.some(b=>b.checked)){e.preventDefault();alert('Seleziona almeno una chat.');}return;}
+    if(!sel.value){e.preventDefault();alert('Scegli prima dove spostarle.');return;}
+    if(btn&&btn.value==='1'&&!confirm('Spostare tutte le '+btn.dataset.total+' chat di questo elenco?'))e.preventDefault();
+    if(btn&&btn.value==='0'&&!boxes.some(b=>b.checked)){e.preventDefault();alert('Seleziona almeno una chat.');}
+  });
+})();
+</script>
+{% endblock %}

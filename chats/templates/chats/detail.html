@@ -1,0 +1,88 @@
+{% extends "chats/base.html" %}
+{% load archivio %}
+{% block title %}{{ conv.title }} · Archivio chat{% endblock %}
+{% block css %}
+.head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
+.head h1{margin:0 0 4px;font-size:22px;line-height:1.3}
+.move{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.thread{max-width:860px}
+.msg{margin:14px 0;padding:12px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--line)}
+.msg.user{background:var(--user)}
+.msg .who{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.msg.recap{padding:4px 16px;background:transparent;border:0;color:var(--muted);font-size:13px;font-style:italic;margin:4px 0}
+.msg details summary{cursor:pointer;color:var(--muted);font-size:13px}
+.msg.thoughts,.msg.tool{background:transparent}
+.body>:first-child{margin-top:0}.body>:last-child{margin-bottom:0}
+.body pre,.msg pre.raw{background:var(--code);color:var(--code-ink);padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px;line-height:1.45}
+.body code{font-size:.92em;background:var(--accent-soft);padding:1px 4px;border-radius:4px}
+.body pre code{background:none;padding:0}
+.body table{border-collapse:collapse;display:block;overflow-x:auto}
+.body th,.body td{border:1px solid var(--line);padding:4px 8px}
+.body blockquote{margin:0;padding-left:12px;border-left:3px solid var(--line);color:var(--muted)}
+.body img{max-width:100%}
+.files{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:10px 0 20px}
+.files a{display:block;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font-size:12px;word-break:break-all}
+.files img{width:100%;height:100px;object-fit:cover;border-radius:4px;margin-bottom:4px}
+{% endblock %}
+{% block content %}
+<div class="head">
+  <div>
+    {% if back_url %}<a class="small" href="{{ back_url }}">← torna all'elenco</a>{% endif %}
+    <h1>{{ conv.title }}</h1>
+    <div class="small muted">
+      {{ conv.created_at|date:"d/m/Y" }}{% if conv.updated_at and conv.updated_at != conv.created_at %} – aggiornata {{ conv.updated_at|date:"d/m/Y" }}{% endif %}
+      · {{ conv.message_count }} messaggi{% if conv.model_slug %} · {{ conv.model_slug }}{% endif %}
+      {% if conv.project %} · progetto {{ conv.project.name }}{% endif %}
+      {% if conv.remote_deleted_at %} · eliminata su ChatGPT il {{ conv.remote_deleted_at|date:"d/m/Y" }}
+      {% elif conv.url %} · <a href="{{ conv.url }}" target="_blank" rel="noopener noreferrer">originale su ChatGPT ↗</a>{% endif %}
+    </div>
+    <div style="margin-top:6px">{% if conv.category %}<span class="tag{% if conv.assigned_by != 'manual' %} plain{% endif %}">{{ conv.category }}</span>
+      <span class="small muted">({{ conv.get_assigned_by_display }})</span>{% else %}<span class="small muted">Senza categoria</span>{% endif %}
+      {% if conv.archived %}<span class="tag plain">archiviata</span>{% endif %}</div>
+  </div>
+  <form class="move" method="post" action="{% url 'chats:move_one' conv.id %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next_url }}">
+    {% include "chats/_move_select.html" %}
+    <button class="primary" type="submit" name="azione" value="sposta">Sposta</button>
+    {% if conv.archived %}<button type="submit" name="azione" value="ripristina">Ripristina</button>
+    {% else %}<button type="submit" name="azione" value="archivia">Archivia</button>{% endif %}
+  </form>
+</div>
+
+{% if attachments %}
+<h3 style="margin:0">File ({{ attachments|length }})</h3>
+<div class="files">
+  {% for a in attachments %}<a href="{% url 'chats:attachment' a.id %}" target="_blank" rel="noopener">
+    {% if a.is_image %}<img src="{% url 'chats:attachment' a.id %}" alt="" loading="lazy">{% endif %}
+    {{ a.name }}<br><span class="muted">{{ a.size|filesize }}</span></a>{% endfor %}
+</div>
+{% endif %}
+
+<div class="thread">
+{% for m in msgs %}
+  {% if m.kind == "recap" %}
+    <div class="msg recap">{{ m.text }}</div>
+  {% elif m.kind == "thoughts" %}
+    <div class="msg thoughts"><details><summary>Ragionamento</summary><div class="body">{{ m.text|markdown }}</div></details></div>
+  {% elif m.kind == "tool" %}
+    <div class="msg tool"><details><summary>{{ m|role_label }}</summary><div class="body">{{ m.text|markdown }}</div></details></div>
+  {% elif m.kind == "code" %}
+    <div class="msg"><div class="who">Codice{% if m.language and m.language != "unknown" %} · {{ m.language }}{% endif %}</div><pre class="raw">{{ m.text }}</pre></div>
+  {% elif m.kind == "output" %}
+    <div class="msg"><div class="who">Risultato</div><pre class="raw">{{ m.text }}</pre></div>
+  {% else %}
+    <div class="msg {{ m.role }}"><div class="who">{{ m|role_label }}</div><div class="body">{{ m.text|markdown }}</div></div>
+  {% endif %}
+{% endfor %}
+</div>
+{% endblock %}
+{% block js %}
+<script>
+document.querySelectorAll('.js-move-select').forEach(s=>s.addEventListener('change',()=>{
+  s.parentElement.querySelector('.js-new-cat').hidden=s.value!=='nuova';}));
+document.querySelector('.move').addEventListener('submit',e=>{
+  if(e.submitter&&e.submitter.value!=='sposta')return;
+  if(!e.target.querySelector('.js-move-select').value){e.preventDefault();alert('Scegli dove spostarla.');}});
+</script>
+{% endblock %}

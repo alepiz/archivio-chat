@@ -1,0 +1,18 @@
+<div class="card{% if is_child %} child{% endif %}">
+  <form method="post" class="row">
+    {% csrf_token %}<input type="hidden" name="azione" value="modifica"><input type="hidden" name="id" value="{{ c.id }}">
+    <input type="text" name="nome" value="{{ c.name }}" required>
+    <select name="area" title="Area">
+      <option value="">area principale</option>
+      {% for a in areas %}{% if a.cat.id != c.id %}<option value="{{ a.cat.id }}" {% if c.parent_id == a.cat.id %}selected{% endif %}>dentro {{ a.cat.name }}</option>{% endif %}{% endfor %}
+    </select>
+    <textarea name="parole" placeholder="parole chiave">{{ c.keywords }}</textarea>
+    <input type="hidden" name="ordine" value="{{ c.order }}">
+    <a class="small" style="align-self:center" href="{% url 'chats:index' %}?cat={{ c.id }}">{{ n }} chat</a>
+    <button>Salva</button>
+  </form>
+  <form method="post" class="row" style="margin-top:6px" onsubmit="return confirm('Eliminare “{{ c.name|escapejs }}”? Le sue chat torneranno senza categoria.')">
+    {% csrf_token %}<input type="hidden" name="azione" value="elimina"><input type="hidden" name="id" value="{{ c.id }}">
+    <button class="small">Elimina</button>
+  </form>
+</div>

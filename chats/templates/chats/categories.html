@@ -1,0 +1,63 @@
+{% extends "chats/base.html" %}
+{% block title %}Categorie e progetti · Archivio chat{% endblock %}
+{% block css %}
+section{max-width:980px;margin-bottom:28px}
+section h2{font-size:18px;margin:0 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+.row textarea{min-height:34px;height:64px;flex:1 1 260px;resize:vertical}
+.row input[type=text]{flex:0 1 220px}
+.child{margin-left:28px}
+.stats span{margin-right:16px}
+{% endblock %}
+{% block content %}
+<section>
+  <h2>Stato della classificazione</h2>
+  <div class="card stats small">
+    {% for s in stats %}<span><b>{{ s.n }}</b> {% if s.assigned_by == 'manual' %}manuali{% elif s.assigned_by == 'project' %}da progetto{% elif s.assigned_by == 'auto' %}automatiche{% else %}senza categoria{% endif %}</span>{% endfor %}
+  </div>
+  <form method="post" class="card row">
+    {% csrf_token %}<input type="hidden" name="azione" value="classifica">
+    <span>Assegna le chat senza categoria usando le parole chiave delle categorie.</span>
+    <label class="small"><input type="checkbox" name="rifai" value="1"> rifai anche le automatiche</label>
+    <button class="primary">Classifica ora</button>
+    <span class="small muted">Le chat spostate a mano non vengono mai toccate.</span>
+  </form>
+</section>
+
+<section>
+  <h2>Nuova categoria</h2>
+  <form method="post" class="card row">
+    {% csrf_token %}<input type="hidden" name="azione" value="crea">
+    <input type="text" name="nome" placeholder="Nome" required>
+    <select name="area"><option value="">Area principale</option>
+      {% for a in areas %}<option value="{{ a.cat.id }}">dentro {{ a.cat.name }}</option>{% endfor %}</select>
+    <button class="primary">Crea</button>
+  </form>
+</section>
+
+<section>
+  <h2>Categorie</h2>
+  <p class="small muted">Parole chiave: una per riga (o separate da a capo). Contano di più se compaiono nel titolo.</p>
+  {% for a in areas %}
+    {% include "chats/_category_form.html" with c=a.cat n=a.total is_child=False %}
+    {% for c, n in a.children %}{% include "chats/_category_form.html" with c=c n=n is_child=True %}{% endfor %}
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Progetti ChatGPT</h2>
+  <p class="small muted">Dai un nome ai progetti e una categoria predefinita: le loro chat finiscono lì, salvo quelle che sposti a mano.</p>
+  {% for p in projects %}
+  <form method="post" class="card row">
+    {% csrf_token %}<input type="hidden" name="azione" value="progetto"><input type="hidden" name="id" value="{{ p.id }}">
+    <input type="text" name="nome" value="{{ p.name }}">
+    <span class="small muted" style="align-self:center">{{ p.n }} chat</span>
+    <select name="categoria"><option value="">nessuna categoria predefinita</option>
+      {% for c in all_categories %}<option value="{{ c.id }}" {% if p.default_category_id == c.id %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+    <label class="small" style="align-self:center"><input type="checkbox" name="applica" value="1" checked> applica alle sue chat</label>
+    <button>Salva</button>
+  </form>
+  {% empty %}<p class="muted small">Nessun progetto importato.</p>{% endfor %}
+</section>
+{% endblock %}

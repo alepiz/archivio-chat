@@ -1,0 +1,13 @@
+<select name="categoria" class="js-move-select">
+  <option value="" selected>Sposta in…</option>
+  {% for c in all_categories %}<option value="{{ c.id }}">{% if c.parent_id %}&nbsp;&nbsp;&nbsp;{{ c.name }}{% else %}{{ c.name }}{% endif %}</option>{% endfor %}
+  <option value="none">— Nessuna categoria —</option>
+  <option value="nuova">+ Nuova categoria…</option>
+</select>
+<span class="js-new-cat" hidden>
+  <input type="text" name="nuova_nome" placeholder="Nome nuova categoria">
+  <select name="nuova_area">
+    <option value="">come area principale</option>
+    {% for a in areas %}<option value="{{ a.cat.id }}">dentro {{ a.cat.name }}</option>{% endfor %}
+  </select>
+</span>

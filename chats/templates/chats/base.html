@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Archivio chat{% endblock %}</title>
+<style>
+:root{
+  --bg:#f6f4ef; --panel:#fffdf9; --ink:#1f1d1a; --muted:#6b665d; --line:#e2ddd3;
+  --accent:#8a2d2d; --accent-soft:#f3e6e3; --user:#efeae0; --code:#23211e; --code-ink:#f1ede4;
+  --mark:#ffe58a; --ok:#2f6b3a; --err:#9b2c2c; --on-accent:#fff;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#171614; --panel:#1f1d1b; --ink:#ece8e1; --muted:#a39d92; --line:#34312c;
+  --accent:#e08a7d; --accent-soft:#3a2724; --user:#2a2724; --code:#0f0e0d; --code-ink:#ece8e1;
+  --mark:#7a6212; --ok:#8fcf99; --err:#f0a0a0; --on-accent:#1a1614;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+header{position:sticky;top:0;z-index:5;display:flex;gap:16px;align-items:center;padding:10px 20px;background:var(--panel);border-bottom:1px solid var(--line)}
+header .brand{font-weight:700;font-size:17px;color:var(--ink);white-space:nowrap}
+header form{flex:1;display:flex;gap:8px;max-width:720px}
+header input[type=search]{flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font-size:15px}
+header nav a{margin-left:14px;white-space:nowrap}
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 54px)}
+aside{border-right:1px solid var(--line);padding:14px 10px;background:var(--panel);overflow-y:auto;position:sticky;top:54px;height:calc(100vh - 54px)}
+aside a{display:flex;justify-content:space-between;gap:8px;padding:4px 10px;border-radius:6px;color:var(--ink)}
+aside a:hover{background:var(--accent-soft);text-decoration:none}
+aside a.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+aside .sub a{padding-left:24px;font-size:14px}
+aside .n{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+aside h4{margin:16px 10px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+main{padding:18px 24px;min-width:0}
+.btn,button{font:inherit;padding:6px 12px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);cursor:pointer}
+.btn.primary,button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+select,input[type=text],textarea{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink)}
+.flash{padding:8px 12px;border-radius:8px;margin-bottom:12px;border:1px solid var(--line)}
+.flash.success{color:var(--ok)} .flash.error{color:var(--err)}
+.muted{color:var(--muted)} .small{font-size:13px}
+.tag{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;background:var(--accent-soft);color:var(--accent)}
+.tag.plain{background:transparent;border:1px solid var(--line);color:var(--muted)}
+mark{background:var(--mark);color:inherit;border-radius:2px}
+@media (max-width:800px){.layout{grid-template-columns:1fr} aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line)}}
+{% block css %}{% endblock %}
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="{% url 'chats:index' %}">Archivio chat</a>
+  <form action="{% url 'chats:index' %}" method="get">
+    <input type="search" name="q" value="{{ params.q|default:'' }}" placeholder="Cerca in titoli e messaggi… (frasi esatte tra virgolette)" autofocus>
+    {% if cat_param %}<input type="hidden" name="cat" value="{{ cat_param }}">{% endif %}
+    {% if params.vista %}<input type="hidden" name="vista" value="{{ params.vista }}">{% endif %}
+    <button type="submit">Cerca</button>
+  </form>
+  <nav><a href="{% url 'chats:categories' %}">Categorie e progetti</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <a href="{% url 'chats:index' %}" class="{% if request.resolver_match.url_name == 'index' and not cat_param and not params.vista %}on{% endif %}"><span>Tutte le chat</span><span class="n">{{ all_count }}</span></a>
+    <a href="{% url 'chats:index' %}?cat=none" class="{% if cat_param == 'none' %}on{% endif %}"><span>Senza categoria</span><span class="n">{{ unassigned }}</span></a>
+    <a href="{% url 'chats:index' %}?vista=archiviate" class="{% if params.vista == 'archiviate' %}on{% endif %}"><span>Archiviate</span><span class="n">{{ archived_count }}</span></a>
+    <h4>Categorie</h4>
+    {% for a in areas %}
+      <a href="{% url 'chats:index' %}?cat={{ a.cat.id }}" class="{% if cat_param == a.cat.id|stringformat:'s' or conv.category_id == a.cat.id %}on{% endif %}"><span>{{ a.cat.name }}</span><span class="n">{{ a.total }}</span></a>
+      {% if a.children %}<div class="sub">{% for c, n in a.children %}
+        <a href="{% url 'chats:index' %}?cat={{ c.id }}" class="{% if cat_param == c.id|stringformat:'s' or conv.category_id == c.id %}on{% endif %}"><span>{{ c.name }}</span><span class="n">{{ n }}</span></a>
+      {% endfor %}</div>{% endif %}
+    {% empty %}<p class="muted small" style="padding:0 10px">Nessuna categoria.</p>{% endfor %}
+  </aside>
+  <main>
+    {% for m in messages %}<div class="flash {{ m.tags }}">{{ m }}</div>{% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% block js %}{% endblock %}
+</body>
+</html>
